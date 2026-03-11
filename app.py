@@ -10,6 +10,10 @@ import os
 import tempfile
 import requests
 from io import BytesIO
+import sys
+
+# Print Python version for debugging
+st.sidebar.write(f"🐍 Python version: {sys.version}")
 
 # Set page config
 st.set_page_config(
@@ -92,6 +96,13 @@ st.markdown("""
     }
     .warning-box {
         background: #f59e0b;
+        color: white;
+        padding: 1rem;
+        border-radius: 10px;
+        margin-bottom: 1rem;
+    }
+    .error-box {
+        background: #ef4444;
         color: white;
         padding: 1rem;
         border-radius: 10px;
@@ -281,6 +292,9 @@ class MaskedAutoencoder(nn.Module):
 def load_model():
     """Load the MAE model with cached resource"""
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    # Check PyTorch version
+    st.sidebar.write(f"🔥 PyTorch version: {torch.__version__}")
     
     # Create model instance
     model = MaskedAutoencoder(
@@ -538,12 +552,12 @@ else:
         <p>Try it with any image! The MAE model will:</p>
         <ul>
             <li>Split the image into 16x16 patches</li>
-            <li>Randomly mask {mask_ratio}% of patches</li>
+            <li>Randomly mask {}% of patches</li>
             <li>Reconstruct the missing content</li>
             <li>Show you the results</li>
         </ul>
     </div>
-    """.format(mask_ratio=mask_ratio), unsafe_allow_html=True)
+    """.format(mask_ratio), unsafe_allow_html=True)
 
 # Footer
 st.markdown("---")
