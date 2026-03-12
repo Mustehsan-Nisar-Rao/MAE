@@ -12,7 +12,6 @@ import os
 import tempfile
 import requests
 from io import BytesIO
-import sys
 
 # Set page config
 st.set_page_config(
