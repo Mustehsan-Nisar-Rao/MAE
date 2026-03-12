@@ -13,14 +13,12 @@ import tempfile
 import requests
 from io import BytesIO
 
-# Set page config
 st.set_page_config(
     page_title="MAE Image Reconstruction",
     page_icon="🎨",
     layout="wide"
 )
 
-# Custom CSS
 st.markdown("""
     <style>
     .main-header {
@@ -31,57 +29,27 @@ st.markdown("""
         margin-bottom: 2rem;
         color: white;
     }
-    .main-header h1 {
-        font-size: 3rem;
-        font-weight: 700;
-        margin-bottom: 0.5rem;
-    }
-    .main-header p {
-        font-size: 1.2rem;
-        opacity: 0.9;
-    }
+    .main-header h1 { font-size: 3rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .main-header p { font-size: 1.2rem; opacity: 0.9; }
     .metric-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 1.5rem;
-        border-radius: 10px;
-        text-align: center;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        color: white; padding: 1.5rem; border-radius: 10px;
+        text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
-    .metric-value {
-        font-size: 2rem;
-        font-weight: 700;
-    }
-    .metric-label {
-        font-size: 1rem;
-        opacity: 0.9;
-        margin-top: 0.5rem;
-    }
+    .metric-value { font-size: 2rem; font-weight: 700; }
+    .metric-label { font-size: 1rem; opacity: 0.9; margin-top: 0.5rem; }
     .stButton > button {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        font-weight: 600;
-        border: none;
-        width: 100%;
-        border-radius: 5px;
-        padding: 0.5rem;
-        transition: all 0.3s ease;
-    }
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        color: white; font-weight: 600; border: none;
+        width: 100%; border-radius: 5px; padding: 0.5rem;
     }
     .info-box {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 1rem;
-        border-radius: 10px;
-        margin-bottom: 1rem;
+        color: white; padding: 1rem; border-radius: 10px; margin-bottom: 1rem;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Model definition classes (same as before)
 class Patchify(nn.Module):
     def __init__(self, patch_size=16):
         super().__init__()
@@ -192,11 +160,9 @@ class MAEDecoder(nn.Module):
         self.num_patches = num_patches
         self.mask_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         nn.init.trunc_normal_(self.mask_token, std=0.02)
-
         grid_size = int(num_patches ** 0.5)
         dec_pos = get_2d_sincos_pos_embed(embed_dim, grid_size)
         self.register_buffer('pos_embed', dec_pos.unsqueeze(0))
-
         self.blocks = nn.ModuleList([
             TransformerBlock(embed_dim, num_heads, mlp_ratio, dropout)
             for _ in range(depth)
@@ -223,19 +189,15 @@ class MaskedAutoencoder(nn.Module):
         self.patch_size = patch_size
         self.num_patches = (img_size // patch_size) ** 2
         self.mask_ratio = mask_ratio
-
         self.patchify = Patchify(patch_size)
         self.patch_embed = nn.Linear(patch_size * patch_size * in_chans, encoder_embed_dim)
-
         pos = get_2d_sincos_pos_embed(encoder_embed_dim, img_size // patch_size)
         self.register_buffer('pos_embed', pos.unsqueeze(0))
-
         self.masking = RandomMasking(mask_ratio)
         self.encoder = MAEEncoder(encoder_embed_dim, encoder_depth, encoder_num_heads, mlp_ratio, dropout)
         self.enc_to_dec = nn.Linear(encoder_embed_dim, decoder_embed_dim)
         self.decoder = MAEDecoder(decoder_embed_dim, decoder_depth, decoder_num_heads,
                                    mlp_ratio, dropout, self.num_patches, patch_size)
-
         self._init_weights()
 
     def _init_weights(self):
@@ -263,96 +225,63 @@ class MaskedAutoencoder(nn.Module):
 
 @st.cache_resource
 def load_model():
-    """Load the MAE model with cached resource"""
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
-    # Create model instance
     model = MaskedAutoencoder(
-        img_size=224,
-        patch_size=16,
-        encoder_embed_dim=768,
-        encoder_depth=12,
-        encoder_num_heads=12,
-        decoder_embed_dim=384,
-        decoder_depth=12,
-        decoder_num_heads=6,
+        img_size=224, patch_size=16,
+        encoder_embed_dim=768, encoder_depth=12, encoder_num_heads=12,
+        decoder_embed_dim=384, decoder_depth=12, decoder_num_heads=6,
         mask_ratio=0.75
     ).to(device)
-    
-    # Try to download and load weights from GitHub
+
     github_url = "https://github.com/Mustehsan-Nisar-Rao/MAE/releases/download/v1/best_model.2.pth"
-    
+
     try:
         with st.spinner("📥 Downloading model weights..."):
             response = requests.get(github_url, stream=True, timeout=30)
             response.raise_for_status()
-            
-            # Save to temp file
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pth') as tmp_file:
                 for chunk in response.iter_content(chunk_size=8192):
                     tmp_file.write(chunk)
                 tmp_path = tmp_file.name
-            
-            # Load weights
             state_dict = torch.load(tmp_path, map_location=device, weights_only=True)
             model.load_state_dict(state_dict)
             model.eval()
-            
-            # Clean up
             os.unlink(tmp_path)
-            
-            st.success(f"✅ Model loaded successfully on {device}")
-            
+            st.success(f"✅ Model loaded on {device}")
     except Exception as e:
-        st.warning(f"⚠️ Could not load pretrained weights: {str(e)}")
-        st.info("Using untrained model for demo purposes only.")
-    
+        st.warning(f"⚠️ Could not load weights: {str(e)}")
+        st.info("Using untrained model for demo.")
+
     return model, device
 
 def tensor_to_image(tensor):
-    """Convert tensor to displayable image"""
     img = tensor.cpu().numpy().transpose(1, 2, 0)
     mean = np.array([0.485, 0.456, 0.406])
     std = np.array([0.229, 0.224, 0.225])
     img = img * std + mean
-    img = np.clip(img, 0, 1)
-    return img
+    return np.clip(img, 0, 1)
 
 def process_image(image, model, device, mask_ratio):
-    """Process single image through the model"""
-    # Define transforms
     transform = transforms.Compose([
         transforms.Resize(224),
+        transforms.CenterCrop(224),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-    
-    # Transform image
     img_tensor = transform(image).unsqueeze(0).to(device)
-    
-    # Update mask ratio
     model.masking.mask_ratio = mask_ratio / 100.0
-    
-    # Run model
     with torch.no_grad():
         pred, mask, _ = model(img_tensor)
-    
-    # Create masked image
     patchify_layer = Patchify(16)
     patches = patchify_layer(img_tensor)
     masked_patches = patches.clone()
     masked_patches[mask.bool()] = 0
     masked_img = model.reconstruct_image(masked_patches)
-    
-    # Reconstruct image
     recon_img = model.reconstruct_image(pred)
-    
-    # Calculate mask percentage
     mask_percentage = (mask.sum().item() / mask.numel()) * 100
-    
     return masked_img, recon_img, img_tensor, mask_percentage
 
-# Header
+# UI
 st.markdown("""
 <div class="main-header">
     <h1>🎨 MAE Image Reconstruction</h1>
@@ -360,179 +289,84 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Sidebar
 with st.sidebar:
     st.markdown("## ⚙️ Settings")
-    
-    # Mask ratio slider
     st.markdown("### 🎭 Mask Settings")
-    mask_ratio = st.slider(
-        "Mask Ratio (%)",
-        min_value=0,
-        max_value=100,
-        value=75,
-        step=5,
-        help="Percentage of patches to mask (default: 75% as per MAE paper)"
-    )
-    
+    mask_ratio = st.slider("Mask Ratio (%)", 0, 100, 75, 5,
+        help="Percentage of patches to mask")
     st.markdown("---")
-    
-    # Model info
     st.markdown("### 📊 Model Info")
     st.markdown("""
     - **Encoder**: ViT-Base (12 layers)
     - **Decoder**: ViT-Small (12 layers)
     - **Patch Size**: 16x16
-    - **Parameters**: 107.5M
+    - **Parameters**: ~107M
     """)
-    
     st.markdown("---")
-    
-    # About section
     st.markdown("### ℹ️ About")
-    st.markdown("""
-    This app demonstrates **Masked Autoencoder (MAE)** for image reconstruction.
-    
-    Upload any image and adjust the mask ratio to see how the model reconstructs masked patches.
-    """)
+    st.markdown("Masked Autoencoder (MAE) for image reconstruction.")
 
-# Load model
 model, device = load_model()
 
-# Main content
 col1, col2 = st.columns([2, 1])
-
 with col2:
     st.markdown("### 📤 Upload Image")
-    uploaded_image = st.file_uploader(
-        "Choose an image...",
-        type=['jpg', 'jpeg', 'png', 'bmp']
-    )
+    uploaded_image = st.file_uploader("Choose an image...", type=['jpg','jpeg','png','bmp'])
 
 if uploaded_image is not None:
-    # Load and display original
     image = Image.open(uploaded_image).convert('RGB')
-    
     with col1:
         st.markdown("### 🖼️ Original Image")
         st.image(image, use_container_width=True)
-    
-    # Process button
+
     if st.button("🚀 Run Reconstruction", use_container_width=True):
-        with st.spinner("🔄 Processing image..."):
+        with st.spinner("🔄 Processing..."):
             masked_img, recon_img, original_img, mask_percentage = process_image(
-                image, model, device, mask_ratio
-            )
-        
-        # Metrics row
-        col_metrics = st.columns(3)
-        with col_metrics[0]:
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-value">{mask_ratio}%</div>
-                <div class="metric-label">Mask Ratio</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col_metrics[1]:
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-value">{mask_percentage:.1f}%</div>
-                <div class="metric-label">Actual Masked</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col_metrics[2]:
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-value">224x224</div>
-                <div class="metric-label">Image Size</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # Results row
+                image, model, device, mask_ratio)
+
+        col_m1, col_m2, col_m3 = st.columns(3)
+        with col_m1:
+            st.markdown(f'<div class="metric-card"><div class="metric-value">{mask_ratio}%</div><div class="metric-label">Mask Ratio</div></div>', unsafe_allow_html=True)
+        with col_m2:
+            st.markdown(f'<div class="metric-card"><div class="metric-value">{mask_percentage:.1f}%</div><div class="metric-label">Actual Masked</div></div>', unsafe_allow_html=True)
+        with col_m3:
+            st.markdown(f'<div class="metric-card"><div class="metric-value">224x224</div><div class="metric-label">Image Size</div></div>', unsafe_allow_html=True)
+
         st.markdown("---")
         st.markdown("## 📊 Results")
-        
-        col_res1, col_res2, col_res3 = st.columns(3)
-        
-        with col_res1:
+        col_r1, col_r2, col_r3 = st.columns(3)
+        with col_r1:
             st.markdown("### 🎯 Original")
             st.image(image, use_container_width=True)
-        
-        with col_res2:
+        with col_r2:
             st.markdown(f"### 🎭 Masked ({mask_ratio}%)")
-            masked_display = tensor_to_image(masked_img[0])
-            st.image(masked_display, use_container_width=True)
-        
-        with col_res3:
+            st.image(tensor_to_image(masked_img[0]), use_container_width=True)
+        with col_r3:
             st.markdown("### 🔄 Reconstructed")
-            recon_display = tensor_to_image(recon_img[0])
-            st.image(recon_display, use_container_width=True)
-        
-        # Download buttons
+            st.image(tensor_to_image(recon_img[0]), use_container_width=True)
+
         st.markdown("---")
         st.markdown("### 📥 Download Results")
-        
-        col_dl1, col_dl2, col_dl3 = st.columns(3)
-        
-        with col_dl1:
-            # Save original
+        col_d1, col_d2, col_d3 = st.columns(3)
+        with col_d1:
             buf = BytesIO()
             image.save(buf, format='PNG')
-            st.download_button(
-                "📥 Original",
-                data=buf.getvalue(),
-                file_name="original.png",
-                mime="image/png",
-                use_container_width=True
-            )
-        
-        with col_dl2:
-            # Save masked
+            st.download_button("📥 Original", buf.getvalue(), "original.png", "image/png", use_container_width=True)
+        with col_d2:
             buf = BytesIO()
-            masked_pil = Image.fromarray((masked_display * 255).astype(np.uint8))
-            masked_pil.save(buf, format='PNG')
-            st.download_button(
-                "📥 Masked",
-                data=buf.getvalue(),
-                file_name=f"masked_{mask_ratio}.png",
-                mime="image/png",
-                use_container_width=True
-            )
-        
-        with col_dl3:
-            # Save reconstructed
+            Image.fromarray((tensor_to_image(masked_img[0]) * 255).astype(np.uint8)).save(buf, format='PNG')
+            st.download_button("📥 Masked", buf.getvalue(), f"masked_{mask_ratio}.png", "image/png", use_container_width=True)
+        with col_d3:
             buf = BytesIO()
-            recon_pil = Image.fromarray((recon_display * 255).astype(np.uint8))
-            recon_pil.save(buf, format='PNG')
-            st.download_button(
-                "📥 Reconstructed",
-                data=buf.getvalue(),
-                file_name="reconstructed.png",
-                mime="image/png",
-                use_container_width=True
-            )
-
+            Image.fromarray((tensor_to_image(recon_img[0]) * 255).astype(np.uint8)).save(buf, format='PNG')
+            st.download_button("📥 Reconstructed", buf.getvalue(), "reconstructed.png", "image/png", use_container_width=True)
 else:
-    # Show placeholder
-    st.markdown("""
+    st.markdown(f"""
     <div class="info-box">
         <h3>👆 Upload an image to get started</h3>
-        <p>Try it with any image! The MAE model will:</p>
-        <ul>
-            <li>Split the image into 16x16 patches</li>
-            <li>Randomly mask {}% of patches</li>
-            <li>Reconstruct the missing content</li>
-            <li>Show you the results</li>
-        </ul>
+        <p>The MAE model will mask {mask_ratio}% of patches and reconstruct them.</p>
     </div>
-    """.format(mask_ratio), unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
-# Footer
 st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: #666; padding: 1rem;'>
-    <p>Built with Streamlit • Masked Autoencoder • Based on MAE paper by Facebook AI</p>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("<div style='text-align:center;color:#666;'>Built with Streamlit • Masked Autoencoder • Facebook AI Research</div>", unsafe_allow_html=True)
