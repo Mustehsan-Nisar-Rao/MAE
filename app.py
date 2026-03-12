@@ -5,15 +5,14 @@ import torch.nn.functional as F
 from torchvision import transforms
 from PIL import Image
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import os
 import tempfile
 import requests
 from io import BytesIO
 import sys
-
-# Print Python version for debugging
-st.sidebar.write(f"🐍 Python version: {sys.version}")
 
 # Set page config
 st.set_page_config(
@@ -41,13 +40,6 @@ st.markdown("""
     .main-header p {
         font-size: 1.2rem;
         opacity: 0.9;
-    }
-    .image-container {
-        background: white;
-        padding: 1rem;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        margin: 1rem 0;
     }
     .metric-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -87,31 +79,10 @@ st.markdown("""
         border-radius: 10px;
         margin-bottom: 1rem;
     }
-    .success-box {
-        background: #10b981;
-        color: white;
-        padding: 1rem;
-        border-radius: 10px;
-        margin-bottom: 1rem;
-    }
-    .warning-box {
-        background: #f59e0b;
-        color: white;
-        padding: 1rem;
-        border-radius: 10px;
-        margin-bottom: 1rem;
-    }
-    .error-box {
-        background: #ef4444;
-        color: white;
-        padding: 1rem;
-        border-radius: 10px;
-        margin-bottom: 1rem;
-    }
     </style>
 """, unsafe_allow_html=True)
 
-# Model definition classes
+# Model definition classes (same as before)
 class Patchify(nn.Module):
     def __init__(self, patch_size=16):
         super().__init__()
@@ -266,6 +237,9 @@ class MaskedAutoencoder(nn.Module):
         self.decoder = MAEDecoder(decoder_embed_dim, decoder_depth, decoder_num_heads,
                                    mlp_ratio, dropout, self.num_patches, patch_size)
 
+        self._init_weights()
+
+    def _init_weights(self):
         nn.init.xavier_uniform_(self.patch_embed.weight)
         nn.init.constant_(self.patch_embed.bias, 0)
         nn.init.xavier_uniform_(self.enc_to_dec.weight)
@@ -274,7 +248,7 @@ class MaskedAutoencoder(nn.Module):
     def forward(self, imgs):
         x = self.patch_embed(self.patchify(imgs))
         x = x + self.pos_embed
-        x_visible, mask, ids_restore, ids_keep = self.masking(x)
+        x_visible, mask, ids_restore, _ = self.masking(x)
         latent = self.encoder(x_visible)
         latent = self.enc_to_dec(latent)
         pred = self.decoder(latent, ids_restore)
@@ -292,9 +266,6 @@ class MaskedAutoencoder(nn.Module):
 def load_model():
     """Load the MAE model with cached resource"""
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
-    # Check PyTorch version
-    st.sidebar.write(f"🔥 PyTorch version: {torch.__version__}")
     
     # Create model instance
     model = MaskedAutoencoder(
