@@ -1,7 +1,7 @@
-streamlit==1.31.0
+streamlit==1.38.0
 torch==2.9.0
 torchvision==0.24.0
-numpy==1.26.4
-Pillow==10.4.0
-matplotlib==3.9.2
+numpy==2.2.6
+Pillow==11.1.0
+matplotlib==3.10.1
 requests==2.32.3
