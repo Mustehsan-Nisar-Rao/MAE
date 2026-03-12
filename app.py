@@ -294,7 +294,7 @@ def load_model():
                 tmp_path = tmp_file.name
             
             # Load weights
-            state_dict = torch.load(tmp_path, map_location=device)
+            state_dict = torch.load(tmp_path, map_location=device, weights_only=True)
             model.load_state_dict(state_dict)
             model.eval()
             
